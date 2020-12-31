@@ -28,7 +28,12 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     implementation group: 'org.codehaus.groovy', name: 'groovy-all', version: '3.0.7'
+    compile 'com.google.api-client:google-api-client:1.31.1'
+    compile 'com.google.oauth-client:google-oauth-client-jetty:1.31.1'
+    compile 'com.google.apis:google-api-services-gmail:v1-rev110-1.25.0'
 
+    compile group: 'org.jsoup', name: 'jsoup', version: '1.13.1'
+    compile group: 'net.sourceforge.cssparser', name: 'cssparser', version: '0.9.29'
 }
 
 test {
