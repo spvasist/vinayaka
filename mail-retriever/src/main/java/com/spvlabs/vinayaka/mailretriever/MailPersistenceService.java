@@ -2,6 +2,7 @@ package com.spvlabs.vinayaka.mailretriever;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

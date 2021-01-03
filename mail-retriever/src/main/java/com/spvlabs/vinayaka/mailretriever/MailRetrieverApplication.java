@@ -12,12 +12,15 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.GmailScopes;
-import com.google.api.services.gmail.model.Label;
-import com.google.api.services.gmail.model.ListLabelsResponse;
 import com.google.api.services.gmail.model.ListMessagesResponse;
 import com.google.api.services.gmail.model.Message;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.io.FileNotFoundException;
@@ -28,7 +31,12 @@ import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+@Slf4j
+@Component
+@EnableScheduling
 @SpringBootApplication
 public class MailRetrieverApplication {
 
@@ -50,57 +58,69 @@ public class MailRetrieverApplication {
     );
     private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
 
-    final MailPersistenceService mailPersistenceService;
+    private final ConfigurableApplicationContext ctx;
+    private final MailPersistenceService mailPersistenceService;
+    AtomicBoolean shutdown = new AtomicBoolean(false);
 
-    public MailRetrieverApplication(MailPersistenceService mailPersistenceService) {
+    public MailRetrieverApplication(MailPersistenceService mailPersistenceService, ConfigurableApplicationContext ctx) throws GeneralSecurityException, IOException, InterruptedException {
+        this.ctx = ctx;
         this.mailPersistenceService = mailPersistenceService;
     }
 
     @PostConstruct
-    void retrieveMails() throws GeneralSecurityException, IOException {
-        // Build a new authorized API client service.
-        final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-        Gmail service = new Gmail.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
-                .setApplicationName(APPLICATION_NAME)
-                .build();
+    void run() throws GeneralSecurityException, IOException {
+        while (true) {
+            System.out.print("***Enter the date range (e.g. 01/01/2020-31/01/2020) & any invalid input to exit *** : ");
+            Scanner scanner = new Scanner(System.in);
+            String input = scanner.nextLine();
+            String[] split = input.split("-");
+            if (split == null || split.length != 2) {
+                log.error("Invalid input. Exiting application...");
+                break;
+            } else {
+                // Build a new authorized API client service.
+                final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+                Gmail service = new Gmail.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
+                        .setApplicationName(APPLICATION_NAME)
+                        .build();
 
-        // Print the labels in the user's account.
-        String user = "me";
-        ListLabelsResponse listResponse = service.users().labels().list(user).execute();
-        List<Label> labels = listResponse.getLabels();
+                String[] fromParts = split[0].split("/");
+                String from = fromParts[2] + "/" + fromParts[1] + "/" + fromParts[0];
 
+                String[] toParts = split[1].split("/");
+                String to = toParts[2] + "/" + toParts[1] + "/" + toParts[0];
 
-        String nextPageToken = null;
-        int page = 0;
-        int count = 0;
-        List<GmailPlain> messageList = new ArrayList<>();
-        do {
-            ListMessagesResponse msgListResponse = service.users().messages().list(user).setPageToken(nextPageToken).execute();
-            nextPageToken = msgListResponse.getNextPageToken();
-            List<Message> messages = msgListResponse.getMessages();
-            //Message message = service.users().messages().get(user, messages.get(0).getId()).execute();
-            messages.stream().parallel().forEach(message -> {
-                try {
-                    messageList.add(GmailPlain.getMessage(service, user, message.getId()));
-                } catch (IOException e) {
-                    //
-                }
-            });
-            mailPersistenceService.saveMails(messageList);
-            count += messageList.size();
-            System.out.println(count + " mails saved. Next page token = " + nextPageToken);
-            messageList.clear();
-            page++;
-        } while (nextPageToken != null);
+                // Print the labels in the user's account.
+                String user = "me";
 
-        if (labels.isEmpty()) {
-            System.out.println("No labels found.");
-        } else {
-            System.out.println("Labels:");
-            for (Label label : labels) {
-                System.out.printf("- %s\n", label.getName());
+                String nextPageToken = null;
+                int page = 0;
+                int count = 0;
+                List<GmailPlain> messageList = new ArrayList<>();
+                do {
+                    String q = String.format("after:%s before:%s", from, to);
+                    ListMessagesResponse msgListResponse = service.users().messages().list(user).setQ(q).setPageToken(nextPageToken).execute();
+                    nextPageToken = msgListResponse.getNextPageToken();
+                    List<Message> messages = msgListResponse.getMessages();
+                    if (messages != null) {
+                        //Message message = service.users().messages().get(user, messages.get(0).getId()).execute();
+                        messages.stream().parallel().forEach(message -> {
+                            try {
+                                messageList.add(GmailPlain.getMessage(service, user, message.getId()));
+                            } catch (IOException e) {
+                                //
+                            }
+                        });
+                        mailPersistenceService.saveMails(messageList);
+                    }
+                    count += messageList.size();
+                    System.out.println(count + " mails saved. Next page token = " + nextPageToken);
+                    messageList.clear();
+                    page++;
+                } while (nextPageToken != null);
             }
         }
+        shutdown.set(true);
     }
 
     /**
@@ -132,4 +152,15 @@ public class MailRetrieverApplication {
         SpringApplication.run(MailRetrieverApplication.class, args);
     }
 
+    @Scheduled(fixedDelay = 1000)
+    void shutdown() {
+        if(shutdown.get()) {
+            try {
+                ctx.stop();
+                ctx.close();
+            } catch (Exception e) {
+//
+            }
+        }
+    }
 }
