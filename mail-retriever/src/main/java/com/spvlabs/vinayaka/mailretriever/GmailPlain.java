@@ -1,6 +1,7 @@
 package com.spvlabs.vinayaka.mailretriever;
 
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.model.Message;
 import com.google.api.services.gmail.model.MessagePart;
@@ -17,7 +18,7 @@ import java.util.stream.Collectors;
 
 
 @Document(collection = "mail")
-//@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class GmailPlain {
     @Getter
     private String from;
