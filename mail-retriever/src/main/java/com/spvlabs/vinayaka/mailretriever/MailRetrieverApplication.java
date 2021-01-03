@@ -1,9 +1,5 @@
 package com.spvlabs.vinayaka.mailretriever;
 
-import com.google.api.services.gmail.model.ListMessagesResponse;
-import com.google.api.services.gmail.model.Message;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
 import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
@@ -18,7 +14,12 @@ import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.GmailScopes;
 import com.google.api.services.gmail.model.Label;
 import com.google.api.services.gmail.model.ListLabelsResponse;
+import com.google.api.services.gmail.model.ListMessagesResponse;
+import com.google.api.services.gmail.model.Message;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import javax.annotation.PostConstruct;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,7 +27,6 @@ import java.io.InputStreamReader;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 @SpringBootApplication
@@ -50,6 +50,59 @@ public class MailRetrieverApplication {
     );
     private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
 
+    final MailPersistenceService mailPersistenceService;
+
+    public MailRetrieverApplication(MailPersistenceService mailPersistenceService) {
+        this.mailPersistenceService = mailPersistenceService;
+    }
+
+    @PostConstruct
+    void retrieveMails() throws GeneralSecurityException, IOException {
+        // Build a new authorized API client service.
+        final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+        Gmail service = new Gmail.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
+                .setApplicationName(APPLICATION_NAME)
+                .build();
+
+        // Print the labels in the user's account.
+        String user = "me";
+        ListLabelsResponse listResponse = service.users().labels().list(user).execute();
+        List<Label> labels = listResponse.getLabels();
+
+
+        String nextPageToken = null;
+        int page = 0;
+        int count = 0;
+        List<GmailPlain> messageList = new ArrayList<>();
+        do {
+            ListMessagesResponse msgListResponse = service.users().messages().list(user).setPageToken(nextPageToken).execute();
+            nextPageToken = msgListResponse.getNextPageToken();
+            List<Message> messages = msgListResponse.getMessages();
+            //Message message = service.users().messages().get(user, messages.get(0).getId()).execute();
+            messages.stream().parallel().forEach(message -> {
+                try {
+                    messageList.add(GmailPlain.getMessage(service, user, message.getId()));
+                } catch (IOException e) {
+                    //
+                }
+            });
+            mailPersistenceService.saveMails(messageList);
+            count += messageList.size();
+            System.out.println(count + " mails saved. Next page token = " + nextPageToken);
+            messageList.clear();
+            page++;
+        } while (nextPageToken != null);
+
+        if (labels.isEmpty()) {
+            System.out.println("No labels found.");
+        } else {
+            System.out.println("Labels:");
+            for (Label label : labels) {
+                System.out.printf("- %s\n", label.getName());
+            }
+        }
+    }
+
     /**
      * Creates an authorized Credential object.
      *
@@ -57,7 +110,7 @@ public class MailRetrieverApplication {
      * @return An authorized Credential object.
      * @throws IOException If the credentials.json file cannot be found.
      */
-    private static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
+    private Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
         // Load client secrets.
         InputStream in = MailRetrieverApplication.class.getResourceAsStream(CREDENTIALS_FILE_PATH);
         if (in == null) {
@@ -75,47 +128,8 @@ public class MailRetrieverApplication {
         return new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
     }
 
-    public static void main(String[] args) throws IOException, GeneralSecurityException {
+    public static void main(String[] args) {
         SpringApplication.run(MailRetrieverApplication.class, args);
-
-        // Build a new authorized API client service.
-        final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-        Gmail service = new Gmail.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
-                .setApplicationName(APPLICATION_NAME)
-                .build();
-
-        // Print the labels in the user's account.
-        String user = "me";
-        ListLabelsResponse listResponse = service.users().labels().list(user).execute();
-        List<Label> labels = listResponse.getLabels();
-
-
-        String nextPageToken = null;
-        int page = 0;
-        List<GmailPlain> messageList = new ArrayList<>();
-        while(page <10) {
-            ListMessagesResponse msgListResponse = service.users().messages().list(user).setPageToken(nextPageToken).execute();
-            nextPageToken = msgListResponse.getNextPageToken();
-            List<Message> messages = msgListResponse.getMessages();
-            //Message message = service.users().messages().get(user, messages.get(0).getId()).execute();
-            messages.stream().parallel().forEach(message -> {
-                try {
-                    messageList.add(GmailRetriever.getMessage(service, user, message.getId()));
-                } catch (IOException e) {
-                    //
-                }
-            });
-            page--;
-        }
-
-        if (labels.isEmpty()) {
-            System.out.println("No labels found.");
-        } else {
-            System.out.println("Labels:");
-            for (Label label : labels) {
-                System.out.printf("- %s\n", label.getName());
-            }
-        }
     }
 
 }
