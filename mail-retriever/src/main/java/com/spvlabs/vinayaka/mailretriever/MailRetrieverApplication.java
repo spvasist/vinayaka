@@ -62,7 +62,7 @@ public class MailRetrieverApplication {
     private final MailPersistenceService mailPersistenceService;
     AtomicBoolean shutdown = new AtomicBoolean(false);
 
-    public MailRetrieverApplication(MailPersistenceService mailPersistenceService, ConfigurableApplicationContext ctx) throws GeneralSecurityException, IOException, InterruptedException {
+    public MailRetrieverApplication(MailPersistenceService mailPersistenceService, ConfigurableApplicationContext ctx) {
         this.ctx = ctx;
         this.mailPersistenceService = mailPersistenceService;
     }
@@ -94,7 +94,6 @@ public class MailRetrieverApplication {
                 String user = "me";
 
                 String nextPageToken = null;
-                int page = 0;
                 int count = 0;
                 List<GmailPlain> messageList = new ArrayList<>();
                 do {
@@ -116,7 +115,6 @@ public class MailRetrieverApplication {
                     count += messageList.size();
                     System.out.println(count + " mails saved. Next page token = " + nextPageToken);
                     messageList.clear();
-                    page++;
                 } while (nextPageToken != null);
             }
         }
