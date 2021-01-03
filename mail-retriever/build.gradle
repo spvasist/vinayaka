@@ -4,7 +4,8 @@ plugins {
     id 'java'
     id 'groovy'
 }
-ext['groovy.version'] = '3.0.7'
+ext.set('groovy.version','3.0.7')
+
 group = 'com.spvlabs.vinayaka'
 version = '1.0.0'
 sourceCompatibility = '15'
@@ -20,20 +21,22 @@ repositories {
 }
 
 dependencies {
-    compile group: 'org.springframework.boot', name: 'spring-boot-starter-data-mongodb', version: '2.4.1'
-    compile group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: '2.4.1'
-    compile group: 'org.projectlombok', name: 'lombok', version: '1.18.16'
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-mongodb', version: '2.4.1'
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: '2.4.1'
+    implementation group: 'org.projectlombok', name: 'lombok', version: '1.18.16'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
-    compile group: 'org.springframework.boot', name: 'spring-boot-configuration-processor', version: '2.4.1'
-    annotationProcessor 'org.projectlombok:lombok:1.18.6'
+    implementation group: 'org.springframework.boot', name: 'spring-boot-configuration-processor', version: '2.4.1'
+    annotationProcessor 'org.projectlombok:lombok:1.18.16'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     implementation group: 'org.codehaus.groovy', name: 'groovy-all', version: '3.0.7'
-    compile 'com.google.api-client:google-api-client:1.31.1'
-    compile 'com.google.oauth-client:google-oauth-client-jetty:1.31.1'
-    compile 'com.google.apis:google-api-services-gmail:v1-rev110-1.25.0'
+    testImplementation group: 'org.spockframework', name: 'spock-core', version: '2.0-M4-groovy-3.0'
 
-    compile group: 'org.jsoup', name: 'jsoup', version: '1.13.1'
-    compile group: 'net.sourceforge.cssparser', name: 'cssparser', version: '0.9.29'
+    implementation 'com.google.api-client:google-api-client:1.31.1'
+    implementation 'com.google.oauth-client:google-oauth-client-jetty:1.31.1'
+    implementation 'com.google.apis:google-api-services-gmail:v1-rev110-1.25.0'
+
+    implementation group: 'org.jsoup', name: 'jsoup', version: '1.13.1'
+    implementation group: 'net.sourceforge.cssparser', name: 'cssparser', version: '0.9.29'
 }
 
 test {
